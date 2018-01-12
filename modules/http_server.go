@@ -1,24 +1,24 @@
 package modules
 
 import (
-	"context"
+	// "context"
 	"fmt"
 	"net/http"
-	"time"
+	// "time"
 
 	"github.com/evilsocket/bettercap-ng/log"
 	"github.com/evilsocket/bettercap-ng/session"
 )
 
 type HttpServer struct {
-	session.SessionModule
+	StartStopModule
 	server *http.Server
 }
 
 func NewHttpServer(s *session.Session) *HttpServer {
 	httpd := &HttpServer{
-		SessionModule: session.NewSessionModule("http.server", s),
-		server:        &http.Server{},
+		StartStopModule: NewStartStopModule("http.server", s),
+		server:          &http.Server{},
 	}
 
 	httpd.AddParam(session.NewStringParameter("http.server.path",
@@ -34,18 +34,6 @@ func NewHttpServer(s *session.Session) *HttpServer {
 	httpd.AddParam(session.NewIntParameter("http.server.port",
 		"80",
 		"Port to bind the http server to."))
-
-	httpd.AddHandler(session.NewModuleHandler("http.server on", "",
-		"Start httpd server.",
-		func(args []string) error {
-			return httpd.Start()
-		}))
-
-	httpd.AddHandler(session.NewModuleHandler("http.server off", "",
-		"Stop httpd server.",
-		func(args []string) error {
-			return httpd.Stop()
-		}))
 
 	return httpd
 }
@@ -63,6 +51,8 @@ func (httpd *HttpServer) Author() string {
 }
 
 func (httpd *HttpServer) Configure() error {
+	httpd.StartStopModule.Configure()
+
 	var err error
 	var path string
 	var address string
@@ -87,31 +77,24 @@ func (httpd *HttpServer) Configure() error {
 	return nil
 }
 
-func (httpd *HttpServer) Start() error {
-	if httpd.Running() == true {
-		return session.ErrAlreadyStarted
-	} else if err := httpd.Configure(); err != nil {
+func (httpd *HttpServer) Worker() {
+	httpd.StartStopModule.Worker()
+
+	log.Info("httpd server starting on http://%s", httpd.server.Addr)
+	err := httpd.server.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		panic(err)
+	}
+}
+
+/*
+func (httpd *HttpServer) Stop() error {
+	if err := httpd.StartStopModule.Stop(); err != nil {
 		return err
 	}
 
-	httpd.SetRunning(true)
-	go func() {
-		log.Info("httpd server starting on http://%s", httpd.server.Addr)
-		err := httpd.server.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			panic(err)
-		}
-	}()
-
-	return nil
-}
-
-func (httpd *HttpServer) Stop() error {
-	if httpd.Running() == false {
-		return session.ErrAlreadyStopped
-	}
-	httpd.SetRunning(false)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	return httpd.server.Shutdown(ctx)
 }
+*/
