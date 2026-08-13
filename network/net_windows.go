@@ -5,7 +5,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/google/gopacket/pcap"
+	"github.com/gopacket/gopacket/pcap"
 )
 
 /*
@@ -52,4 +52,8 @@ func SetInterfaceChannel(iface string, channel int) error {
 func GetSupportedFrequencies(iface string) ([]int, error) {
 	freqs := make([]int, 0)
 	return freqs, fmt.Errorf("Windows does not support WiFi channel hopping.")
+}
+
+func ForceMonitorMode(iface string) error {
+	return nil
 }

@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/bettercap/bettercap/core"
-	"github.com/bettercap/bettercap/network"
+	"github.com/bettercap/bettercap/v2/core"
+	"github.com/bettercap/bettercap/v2/network"
 
 	"github.com/evilsocket/islazy/fs"
 	"github.com/evilsocket/islazy/str"
@@ -16,6 +16,7 @@ import (
 type LinuxFirewall struct {
 	iface        *network.Endpoint
 	forwarding   bool
+	restore      bool
 	redirections map[string]*Redirection
 }
 
@@ -28,6 +29,7 @@ func Make(iface *network.Endpoint) FirewallManager {
 	firewall := &LinuxFirewall{
 		iface:        iface,
 		forwarding:   false,
+		restore:      false,
 		redirections: make(map[string]*Redirection),
 	}
 
@@ -72,6 +74,7 @@ func (f LinuxFirewall) EnableForwarding(enabled bool) error {
 		return f.enableFeature(IPV6ForwardingFile, enabled)
 	}
 
+	f.restore = true
 	return nil
 }
 
@@ -96,8 +99,6 @@ func (f *LinuxFirewall) getCommandLine(r *Redirection, enabled bool) (cmdLine []
 			"-i", r.Interface,
 			"-p", r.Protocol,
 			"--dport", fmt.Sprintf("%d", r.SrcPort),
-			"-j", "DNAT",
-			"--to", fmt.Sprintf("%s:%d", destination, r.DstPort),
 		}
 	} else {
 		cmdLine = []string{
@@ -107,10 +108,18 @@ func (f *LinuxFirewall) getCommandLine(r *Redirection, enabled bool) (cmdLine []
 			"-p", r.Protocol,
 			"-d", r.SrcAddress,
 			"--dport", fmt.Sprintf("%d", r.SrcPort),
-			"-j", "DNAT",
-			"--to", fmt.Sprintf("%s:%d", destination, r.DstPort),
 		}
 	}
+
+	// Exclude traffic destined to the proxy machine itself (prevents redirect loops)
+	if r.ExcludeAddress != "" {
+		cmdLine = append(cmdLine, "!", "-d", r.ExcludeAddress)
+	}
+
+	cmdLine = append(cmdLine,
+		"-j", "DNAT",
+		"--to", fmt.Sprintf("%s:%d", destination, r.DstPort),
+	)
 
 	return
 }
@@ -156,6 +165,9 @@ func (f *LinuxFirewall) EnableRedirection(r *Redirection, enabled bool) error {
 }
 
 func (f LinuxFirewall) Restore() {
+	if f.restore == false {
+		return
+	}
 	for _, r := range f.redirections {
 		if err := f.EnableRedirection(r, false); err != nil {
 			fmt.Printf("%s", err)

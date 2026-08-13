@@ -1,7 +1,7 @@
 package packets
 
 import (
-	"github.com/google/gopacket/layers"
+	"github.com/gopacket/gopacket/layers"
 	"net"
 )
 
@@ -40,7 +40,7 @@ func ICMP6NeighborAdvertisement(srcHW net.HardwareAddr, srcIP net.IP, dstHW net.
 var macIpv6Multicast = net.HardwareAddr([]byte{0x33, 0x33, 0x00, 0x00, 0x00, 0x01})
 var ipv6Multicast = net.ParseIP("ff02::1")
 
-func ICMP6RouterAdvertisement(ip net.IP, hw net.HardwareAddr, prefix string, prefixLength uint8) (error, []byte) {
+func ICMP6RouterAdvertisement(ip net.IP, hw net.HardwareAddr, prefix string, prefixLength uint8, routerLifetime uint16) (error, []byte) {
 	eth := layers.Ethernet{
 		SrcMAC:       hw,
 		DstMAC:       macIpv6Multicast,
@@ -59,7 +59,7 @@ func ICMP6RouterAdvertisement(ip net.IP, hw net.HardwareAddr, prefix string, pre
 	}
 	prefixData := []byte{
 		prefixLength,
-		0x0c,                   // flags
+		0xc0,                   // flags
 		0x00, 0x27, 0x8d, 0x00, // valid lifetime (2592000)
 		0x00, 0x09, 0x3a, 0x80, // preferred lifetime (604800)
 		0x00, 0x00, 0x00, 0x00, // reserved
@@ -69,7 +69,7 @@ func ICMP6RouterAdvertisement(ip net.IP, hw net.HardwareAddr, prefix string, pre
 	adv := layers.ICMPv6RouterAdvertisement{
 		HopLimit:       255,
 		Flags:          0x08, // prf
-		RouterLifetime: 1800,
+		RouterLifetime: routerLifetime,
 		Options: []layers.ICMPv6Option{
 			{
 				Type: layers.ICMPv6OptSourceAddress,
